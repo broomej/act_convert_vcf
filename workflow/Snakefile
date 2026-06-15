@@ -1,69 +1,48 @@
-module serpent:
-    #snakefile: github("broomej/serpent", path="workflow/Snakefile", tag=config.get("serpent_version"))
-    snakefile: github("broomej/serpent", path="workflow/Snakefile", commit="1fbad34925a23e2efeb8123dad1af20c28b00f35")
+ROOTDIR=config["project_root"]["act"]
+PROJNAME=config["act_dir"]["convert_vcf"]
+PROJDIR=f"{ROOTDIR}/{PROJNAME}"
+RESDIR = f"{PROJDIR}/results"
+LOGDIR = f"{PROJDIR}/logs"
+TEMPDIR = f"{PROJDIR}/temp"
+PREPDIR = f"{ROOTDIR}/{config['act_dir']['data_prep']}/results"
 
-PREPDIR = f"{config['project_root']['act']['data_prep']}/results"
-ROOTDIR = config["project_root"]["act"]["convert_vcf"]
-RESDIR = f"{ROOTDIR}/results"
-LOGDIR = f"{ROOTDIR}/logs"
-TEMPDIR = f"{ROOTDIR}/temp"
+# CleanedGenotype data files don't use a standard naming convention, create a
+# key. We'll need to iterate over the ACT3 cohorts later, so define a separate
+# key just for those, then add ACT1 to the full BFILES key.
+ACT3 = {
+    "ACT3_NHW": f"{ACT_DATA_DIR}/ACT3_NHW/CleanedGenotypes/ACT3.clean.nhw",
+    "ACT3_AA": f"{ACT_DATA_DIR}/ACT3_AA/CleanedGenotypes/ACT3.clean.aa",
+    "ACT3_Asian": f"{ACT_DATA_DIR}/ACT3_Asian/CleanedGenotypes/ACT3.clean.asian",
+    "ACT3_Hispanic": f"{ACT_DATA_DIR}/ACT3_Hispanic/CleanedGenotypes/ACT3.clean.hispanic",
+}
+A3_COHORTS=list(ACT3.keys())
+BFILES = {**ACT3, "ACT1": f"{ACT_DATA_DIR}/ACT1/CleanedGenotypes/act_complete.fwd.hg19",}
+COHORTS = list(BFILES.keys())
 
-F_VCF=f"{PREPDIR}/vcf/chr{{chromosome}}_filtered.vcf.gz"
-rule get_ids:
-    container: BCFTOOLS_IMG
-    input:
-        vcf=F_VCF,
-        tbi=F_VCF + ".tbi",
-    output: temp(f"{TEMPDIR}/typed_ids/{{chromosome}}_typed_ids.txt"),
-    log: f"{LOGDIR}/get_ids/{{chromosome}}.log"
-    shell:
-        """
-        bcftools query -l {input.vcf} > {output} 2> {log}
-        """
-
-rule combine_ids:
-    input: expand(rules.get_ids.output, cohort=COHORTS, chromosome=CHROMOSOMES)
-    output: f"{RESDIR}/typed_ids.txt"
-    log: f"{LOGDIR}/combine_ids.log"
-    shell:
-        """
-        cat {input} > {output} 2> {log}
-        """
-
-rule get_bps_samples:
-    container: SHINY_VERSE_IMG
-    input:
-        bps=f"{ACT_DATA_DIR}/act_bps.txt",
-        xwalk=f"{ACT_DATA_DIR}/ACT_ID_xwalk.csv",
-        typed_ids=rules.combine_ids.output,
-    output:
-        txt=f"{RESDIR}/np_ids.txt",
-        rds=f"{RESDIR}/np_ids.rds",
-        ids_matched=f"{RESDIR}/ids_matched.csv",
-    log: f"{LOGDIR}/get_bps_samples.log"
-    script: "scripts/extract_ids.R"
-
-CONVERT_PLINK_OUT_PFX = f"{TEMPDIR}/plink/np_imputed_chr{{chromosome}}"
+CONVERT_PLINK_OUT_PFX = f"{TEMPDIR}/plink/imputed_chr{{chromosome}}"
 rule vcf_to_plink:
     container: PLINK_IMG
     input:
         vcf=M_VCF_OUT_PFX,
-        tbi=M_VCF_OUT_PFX + ".tbi",
-        ids=rules.get_bps_samples.output.txt,
+        tbi=f"{M_VCF_OUT_PFX}.tbi",
     output:
-        bed=temp(CONVERT_PLINK_OUT_PFX + ".bed"),
-        bim=temp(CONVERT_PLINK_OUT_PFX + ".bim"),
-        fam=temp(CONVERT_PLINK_OUT_PFX + ".fam"),
-    params:
-        out_pfx=CONVERT_PLINK_OUT_PFX,
+        bed=temp(f"{CONVERT_PLINK_OUT_PFX}.bed"),
+        bim=temp(f"{CONVERT_PLINK_OUT_PFX}.bim"),
+        fam=temp(f"{CONVERT_PLINK_OUT_PFX}.fam"),
     log: f"{LOGDIR}/vcf_to_plink/{{chromosome}}.log"
     shell:
         """
+        outdir=plinktemp.chr{wildcards.chromosome}
+        pfx=$outdir/plink
+        mkdir -p $outdir
         plink --vcf {input.vcf} \
-            --keep {input.ids} \
             --make-bed \
-            --out {params.out_pfx}
-        mv {params.out_pfx}.log {log}
+            --out $pfx
+        mv $pfx.bed {output.bed}
+        mv $pfx.bim {output.bim}
+        mv $pfx.fam {output.fam}
+        mv $pfx.log {log}
+        rm -rf $outdir
         """
 
 rule merge_list:
@@ -80,7 +59,7 @@ rule merge_list:
         echo '{input.bed} ' | sed 's/\\.bed /\\n/g' > {output.merge_list} 2> {log}
         """
 
-PLINK_MERGE_PFX = f"{RESDIR}/act_np_imputed"
+PLINK_MERGE_PFX = f"{RESDIR}/act_imputed"
 rule plink_merge:
     container: PLINK_IMG
     input:
@@ -89,18 +68,23 @@ rule plink_merge:
         fam=expand(rules.vcf_to_plink.output.fam, chromosome=CHROMOSOMES),
         merge_list=rules.merge_list.output,
     output:
-        bed=PLINK_MERGE_PFX + ".bed",
-        bim=PLINK_MERGE_PFX + ".bim",
-        fam=PLINK_MERGE_PFX + ".fam",
+        bed=f"{PLINK_MERGE_PFX}.bed",
+        bim=f"{PLINK_MERGE_PFX}.bim",
+        fam=f"{PLINK_MERGE_PFX}.fam",
     log:
         f"{LOGDIR}/plink_merge.log"
-    params:
-        out_pfx=PLINK_MERGE_PFX,
     shell:
         """
+        outdir=bmergetemp
+        mkdir -p $outdir
+        pfx=$outdir/plink
         plink \
         --merge-list {input.merge_list} \
         --make-bed \
-        --out {params.out_pfx}
-        mv {params.out_pfx}.log {log}
+        --out $pfx
+        mv $pfx.bed {output.bed}
+        mv $pfx.bim {output.bim}
+        mv $pfx.fam {output.fam}
+        mv $pfx.log {log}
+        rm -rf $outdir
         """
