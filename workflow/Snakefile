@@ -1,23 +1,7 @@
-ROOTDIR=config["project_root"]["act"]
-PROJNAME=config["act_dir"]["convert_vcf"]
-PROJDIR=f"{ROOTDIR}/{PROJNAME}"
-RESDIR = f"{PROJDIR}/results"
-LOGDIR = f"{PROJDIR}/logs"
-TEMPDIR = f"{PROJDIR}/temp"
-PREPDIR = f"{ROOTDIR}/{config['act_dir']['data_prep']}/results"
-
-# CleanedGenotype data files don't use a standard naming convention, create a
-# key. We'll need to iterate over the ACT3 cohorts later, so define a separate
-# key just for those, then add ACT1 to the full BFILES key.
-ACT3 = {
-    "ACT3_NHW": f"{ACT_DATA_DIR}/ACT3_NHW/CleanedGenotypes/ACT3.clean.nhw",
-    "ACT3_AA": f"{ACT_DATA_DIR}/ACT3_AA/CleanedGenotypes/ACT3.clean.aa",
-    "ACT3_Asian": f"{ACT_DATA_DIR}/ACT3_Asian/CleanedGenotypes/ACT3.clean.asian",
-    "ACT3_Hispanic": f"{ACT_DATA_DIR}/ACT3_Hispanic/CleanedGenotypes/ACT3.clean.hispanic",
-}
-A3_COHORTS=list(ACT3.keys())
-BFILES = {**ACT3, "ACT1": f"{ACT_DATA_DIR}/ACT1/CleanedGenotypes/act_complete.fwd.hg19",}
-COHORTS = list(BFILES.keys())
+RESDIR = f"{ACT_CVCF_ROOT}/results"
+LOGDIR = f"{ACT_CVCF_ROOT}/logs"
+TEMPDIR = f"{ACT_CVCF_ROOT}/temp"
+PREPDIR = f"{ACT_PVCF_ROOT}/results"
 
 CONVERT_PLINK_OUT_PFX = f"{TEMPDIR}/plink/imputed_chr{{chromosome}}"
 rule vcf_to_plink:
