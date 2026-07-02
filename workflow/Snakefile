@@ -1,19 +1,15 @@
-RESDIR = f"{ACT_CVCF_ROOT}/results"
-LOGDIR = f"{ACT_CVCF_ROOT}/logs"
-TEMPDIR = f"{ACT_CVCF_ROOT}/temp"
-PREPDIR = f"{ACT_PVCF_ROOT}/results"
-
-CONVERT_PLINK_OUT_PFX = f"{TEMPDIR}/plink/imputed_chr{{chromosome}}"
+CONVERT_PLINK_OUT_PFX = "temp/plink/imputed_chr{chromosome}"
+M_VCF_OUT_PFX = f"{config["outdir"]["act"]["process_vcf"]}/results/vcf/chr{{chromosome}}_filtered.vcf.gz"
 rule vcf_to_plink:
-    container: PLINK_IMG
+    container: config["images"]["plink"]
     input:
-        vcf=M_VCF_OUT_PFX,
-        tbi=f"{M_VCF_OUT_PFX}.tbi",
+        vcf=expand(M_VCF_OUT_PFX, chromosome = config["CHROMOSOMES"]),
+        tbi=expand(f"{M_VCF_OUT_PFX}.tbi", chromosome = config["CHROMOSOMES"]), 
     output:
         bed=temp(f"{CONVERT_PLINK_OUT_PFX}.bed"),
         bim=temp(f"{CONVERT_PLINK_OUT_PFX}.bim"),
         fam=temp(f"{CONVERT_PLINK_OUT_PFX}.fam"),
-    log: f"{LOGDIR}/vcf_to_plink/{{chromosome}}.log"
+    log: "logs/vcf_to_plink/{chromosome}.log"
     shell:
         """
         outdir=plinktemp.chr{wildcards.chromosome}
@@ -31,32 +27,30 @@ rule vcf_to_plink:
 
 rule merge_list:
     input:
-        bed=expand(rules.vcf_to_plink.output.bed, chromosome=CHROMOSOMES),
-        bim=expand(rules.vcf_to_plink.output.bim, chromosome=CHROMOSOMES),
-        fam=expand(rules.vcf_to_plink.output.fam, chromosome=CHROMOSOMES),
+        bed=expand(rules.vcf_to_plink.output.bed, chromosome = config["CHROMOSOMES"]),
+        bim=expand(rules.vcf_to_plink.output.bim, chromosome = config["CHROMOSOMES"]),
+        fam=expand(rules.vcf_to_plink.output.fam, chromosome = config["CHROMOSOMES"]),
     output:
-        merge_list=temp(f"{TEMPDIR}/merge_list.txt"),
-    log:
-        f"{LOGDIR}/merge_list.log"
+        merge_list=temp("temp/merge_list.txt"),
+    log: "logs/merge_list.log"
     shell:
         """
         echo '{input.bed} ' | sed 's/\\.bed /\\n/g' > {output.merge_list} 2> {log}
         """
 
-PLINK_MERGE_PFX = f"{RESDIR}/act_imputed"
+PLINK_MERGE_PFX = "results/act_imputed"
 rule plink_merge:
-    container: PLINK_IMG
+    container: config["images"]["plink"]
     input:
-        bed=expand(rules.vcf_to_plink.output.bed, chromosome=CHROMOSOMES),
-        bim=expand(rules.vcf_to_plink.output.bim, chromosome=CHROMOSOMES),
-        fam=expand(rules.vcf_to_plink.output.fam, chromosome=CHROMOSOMES),
+        bed=expand(rules.vcf_to_plink.output.bed, chromosome = config["CHROMOSOMES"]),
+        bim=expand(rules.vcf_to_plink.output.bim, chromosome = config["CHROMOSOMES"]),
+        fam=expand(rules.vcf_to_plink.output.fam, chromosome = config["CHROMOSOMES"]),
         merge_list=rules.merge_list.output,
     output:
         bed=f"{PLINK_MERGE_PFX}.bed",
         bim=f"{PLINK_MERGE_PFX}.bim",
         fam=f"{PLINK_MERGE_PFX}.fam",
-    log:
-        f"{LOGDIR}/plink_merge.log"
+    log: "logs/plink_merge.log"
     shell:
         """
         outdir=bmergetemp
