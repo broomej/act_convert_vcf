@@ -1,11 +1,12 @@
-PLINK_MERGE_PFX = f"{config['outdir']['act']['convert_vcf']}/results/act_imputed"
+OUTDIR = config["outdir"]["act"]["convert_vcf"]
+PLINK_MERGE_PFX = f"{OUTDIR}/results/act_imputed"
 rule all:
     input:
         bed=f"{PLINK_MERGE_PFX}.bed",
         bim=f"{PLINK_MERGE_PFX}.bim",
         fam=f"{PLINK_MERGE_PFX}.fam",
 
-CONVERT_PLINK_OUT_PFX = f"{config["outdir"]["act"]["convert_vcf"]}/temp/plink/imputed_chr{{chromosome}}"
+CONVERT_PLINK_OUT_PFX = f"{OUTDIR}/temp/plink/imputed_chr{{chromosome}}"
 M_VCF_OUT_PFX = f"{config["outdir"]["act"]["process_vcf"]}/results/vcf/chr{{chromosome}}_filtered.vcf.gz"
 rule vcf_to_plink:
     container: config["images"]["plink"]
@@ -16,7 +17,7 @@ rule vcf_to_plink:
         bed=temp(f"{CONVERT_PLINK_OUT_PFX}.bed"),
         bim=temp(f"{CONVERT_PLINK_OUT_PFX}.bim"),
         fam=temp(f"{CONVERT_PLINK_OUT_PFX}.fam"),
-    log: f"{config['outdir']['act']['convert_vcf']}/logs/vcf_to_plink/{{chromosome}}.log"
+    log: f"{OUTDIR}/logs/vcf_to_plink/{{chromosome}}.log"
     shell:
         """
         outdir=plinktemp.chr{wildcards.chromosome}
@@ -38,8 +39,8 @@ rule merge_list:
         bim=expand(rules.vcf_to_plink.output.bim, chromosome = config["CHROMOSOMES"]),
         fam=expand(rules.vcf_to_plink.output.fam, chromosome = config["CHROMOSOMES"]),
     output:
-        merge_list=temp(f"{config['outdir']['act']['convert_vcf']}/temp/merge_list.txt"),
-    log: f"{config['outdir']['act']['convert_vcf']}/logs/merge_list.log"
+        merge_list=temp(f"{OUTDIR}/temp/merge_list.txt"),
+    log: f"{OUTDIR}/logs/merge_list.log"
     shell:
         """
         echo '{input.bed} ' | sed 's/\\.bed /\\n/g' > {output.merge_list} 2> {log}
@@ -56,7 +57,7 @@ rule plink_merge:
         bed=f"{PLINK_MERGE_PFX}.bed",
         bim=f"{PLINK_MERGE_PFX}.bim",
         fam=f"{PLINK_MERGE_PFX}.fam",
-    log: f"{config['outdir']['act']['convert_vcf']}/logs/plink_merge.log"
+    log: f"{OUTDIR}/logs/plink_merge.log"
     shell:
         """
         outdir=bmergetemp
