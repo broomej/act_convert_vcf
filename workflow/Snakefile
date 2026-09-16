@@ -1,4 +1,4 @@
-OUTDIR = config["outdir"]["act"]["convert_vcf"]
+OUTDIR = config["act"]["outdir"]["convert_vcf"]
 PLINK_MERGE_PFX = f"{OUTDIR}/results/act_imputed"
 rule all:
     input:
@@ -7,7 +7,7 @@ rule all:
         fam=f"{PLINK_MERGE_PFX}.fam",
 
 CONVERT_PLINK_OUT_PFX = f"{OUTDIR}/temp/plink/imputed_chr{{chromosome}}"
-M_VCF_OUT_PFX = f"{config["outdir"]["act"]["process_vcf"]}/results/vcf/chr{{chromosome}}_filtered.vcf.gz"
+M_VCF_OUT_PFX = f"{config["act"]["outdir"]["process_vcf"]}/results/vcf/chr{{chromosome}}_filtered.vcf.gz"
 rule vcf_to_plink:
     container: config["images"]["plink"]
     input:
